@@ -17,7 +17,7 @@ def get_cpi_data():
 # Load Starbucks financials
 @st.cache_data
 def load_financial_data():
-    df = pd.read_csv("starbucks_financials_expanded.csv", parse_dates=['Date'])
+    df = pd.read_csv("starbucks_financials_expanded.csv", parse_dates=['date'])
     df.set_index('Date', inplace=True)
     return df
 
