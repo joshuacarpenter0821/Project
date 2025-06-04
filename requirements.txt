@@ -4,4 +4,4 @@ numpy
 matplotlib
 yfinance
 statsmodels
-pandas_datareader
+
