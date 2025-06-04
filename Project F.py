@@ -5,20 +5,19 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from datetime import datetime
-from pandas_datareader import data as pdr
 import warnings
 warnings.filterwarnings("ignore")
 
-# Set up FRED CPI data
+# Use yfinance instead of FRED for CPI data
 @st.cache_data
 def get_cpi_data():
-    cpi = pdr.DataReader('CPIAUCNS', 'fred', start='2015-01-01')
+    cpi = yf.download("CPIAUCSL", start="2015-01-01")
     return cpi
 
-# Load Starbucks financials (replace with your actual data source or CSV)
+# Load Starbucks financials
 @st.cache_data
 def load_financial_data():
-    df = pd.read_csv("starbucks_financials.csv", parse_dates=['Date'])
+    df = pd.read_csv("starbucks_financials_expanded.csv", parse_dates=['Date'])
     df.set_index('Date', inplace=True)
     return df
 
@@ -58,7 +57,7 @@ st.pyplot(fig)
 
 # Display CPI data
 st.subheader("📊 Macroeconomic Insight: CPI")
-st.write("Latest CPI Value (from FRED):", float(cpi.iloc[-1]))
+st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
 
 # New Variable Analysis
 st.subheader("📎 Additional Variables Insight")
@@ -69,7 +68,7 @@ st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights 
 st.subheader("🧠 AI-Generated Audit Committee Summary")
 ai_summary = (
     "Our ARIMA-based forecast for Starbucks indicates revenue is expected to grow modestly, aligning with historical patterns. "
-    f"Live CPI data from FRED shows inflationary pressure, currently at {float(cpi.iloc[-1]):.2f}. "
+    f"Live CPI data from yfinance shows inflationary pressure, currently at {float(cpi['Close'].iloc[-1]):.2f}. "
     "EPS trends suggest moderate earnings stability, while COGS fluctuations may warrant further analysis of margin pressures. "
     "No major risk indicators are flagged at this time, though monitoring input cost volatility remains key."
 )
