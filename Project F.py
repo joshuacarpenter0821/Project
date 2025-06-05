@@ -56,12 +56,6 @@ ax.set_ylabel("Revenue (Millions)")
 ax.legend()
 st.pyplot(fig)
 
-# Display CPI data
-import yfinance as yf
-
-# Fetch CPI from FRED database via Yahoo Finance
-cpi = yf.download("CPIAUCSL", period="5y", interval="1mo")
-
 st.write("CPI DataFrame shape:", cpi.shape)
 st.write("CPI DataFrame preview:", cpi.head())
 
@@ -91,6 +85,8 @@ st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
 # New Variable Analysis
 st.subheader("📎 Additional Variables Insight")
 st.line_chart(df[['COGS', 'EPS']])
+if df['EPS'].iloc[-1] < df['EPS'].mean() * 0.8:
+    st.warning("⚠️ EPS has dropped significantly compared to historical average. Potential earnings risk.")
 st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights into per-share profitability trends over time.")
 
 # AI-Generated Summary
