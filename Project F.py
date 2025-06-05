@@ -62,6 +62,23 @@ import yfinance as yf
 # Fetch CPI from FRED database via Yahoo Finance
 cpi = yf.download("CPIAUCSL", period="5y", interval="1mo")
 
+st.write("CPI DataFrame shape:", cpi.shape)
+st.write("CPI DataFrame preview:", cpi.head())
+
+if cpi.empty:
+    st.error("CPI DataFrame is empty. Cannot fetch latest value.")
+    st.stop()
+elif 'Close' not in cpi.columns:
+    st.error("Column 'Close' not found in CPI data.")
+    st.write("Available columns:", cpi.columns)
+    st.stop()
+else:
+    latest_cpi = float(cpi['Close'].iloc[-1])
+    st.write("Latest CPI Value (from yfinance):", latest_cpi)
+
+spy = yf.download("SPY", period="1mo")
+st.write("SPY test data:", spy.head())
+
 st.subheader("📊 Macroeconomic Insight: CPI")
 if not cpi.empty and 'Close' in cpi.columns:
     st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
