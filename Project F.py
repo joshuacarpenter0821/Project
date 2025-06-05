@@ -58,6 +58,10 @@ st.pyplot(fig)
 
 # Display CPI data
 st.subheader("📊 Macroeconomic Insight: CPI")
+if not cpi.empty and 'Close' in cpi.columns:
+    st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
+else:
+    st.warning("CPI data could not be retrieved. Check your ticker symbol or internet connection.")
 st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
 
 # New Variable Analysis
