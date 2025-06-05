@@ -37,7 +37,7 @@ cpi = get_cpi_data()
 growth_input = st.slider("Expected Quarterly Revenue Growth (%)", min_value=-10.0, max_value=10.0, value=2.0, step=0.5)
 
 # Forecast revenue
-rev_series = df['Revenue']
+rev_series = df['revenue']
 forecast, conf_int = forecast_revenue(rev_series)
 latest_date = rev_series.index[-1]
 forecast_dates = pd.date_range(start=latest_date + pd.offsets.QuarterEnd(), periods=4, freq='Q')
