@@ -57,11 +57,18 @@ ax.legend()
 st.pyplot(fig)
 
 # Display CPI data
+import yfinance as yf
+
+# Fetch CPI from FRED database via Yahoo Finance
+cpi = yf.download("CPIAUCSL", period="5y", interval="1mo")
+
 st.subheader("📊 Macroeconomic Insight: CPI")
 if not cpi.empty and 'Close' in cpi.columns:
     st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
 else:
     st.warning("CPI data could not be retrieved. Check your ticker symbol or internet connection.")
+    st.write("CPI DataFrame shape:", cpi.shape)
+st.write("CPI preview:", cpi.head())
 st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
 
 # New Variable Analysis
