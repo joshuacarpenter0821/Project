@@ -89,20 +89,20 @@ elif 'Close' not in cpi.columns:
     st.write("Available columns:", cpi.columns)
     st.stop()
 else:
-    latest_cpi = float(cpi['Close'].iloc[-1])
+    latest_cpi = float(cpi['CPI'].iloc[-1])
     st.write("Latest CPI Value (from FRED):", latest_cpi)
 
 spy = yf.download("SPY", period="1mo")
 st.write("SPY test data:", spy.head())
 
 st.subheader("📊 Macroeconomic Insight: CPI")
-if not cpi.empty and 'Close' in cpi.columns:
-    st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
+if not cpi.empty and 'CPI' in cpi.columns:
+    st.write("Latest CPI Value (from yfinance):", float(cpi['CPI'].iloc[-1]))
 else:
     st.warning("CPI data could not be retrieved. Check your ticker symbol or internet connection.")
     st.write("CPI DataFrame shape:", cpi.shape)
 st.write("CPI preview:", cpi.head())
-st.write("Latest CPI Value (from yfinance):", float(cpi['Close'].iloc[-1]))
+st.write("Latest CPI Value (from yfinance):", float(cpi['CPI'].iloc[-1]))
 
 # New Variable Analysis
 st.subheader("📎 Additional Variables Insight")
@@ -115,7 +115,7 @@ st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights 
 st.subheader("🧠 AI-Generated Audit Committee Summary")
 ai_summary = (
     "Our ARIMA-based forecast for Starbucks indicates revenue is expected to grow modestly, aligning with historical patterns. "
-    f"Live CPI data from yfinance shows inflationary pressure, currently at {float(cpi['Close'].iloc[-1]):.2f}. "
+    f"Live CPI data from yfinance shows inflationary pressure, currently at {float(cpi['CPI'].iloc[-1]):.2f}. "
     "EPS trends suggest moderate earnings stability, while COGS fluctuations may warrant further analysis of margin pressures. "
     "No major risk indicators are flagged at this time, though monitoring input cost volatility remains key."
 )
