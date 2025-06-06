@@ -18,7 +18,7 @@ def get_cpi_data():
         "series_id": series_id,
         "api_key": api_key,
         "file_type": "json",
-        "observation_start": "2023-01-01"
+        "observation_start": "2015-01-01"
     }
 
     response = requests.get(url, params=params)
