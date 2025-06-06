@@ -23,7 +23,11 @@ def forecast_revenue_arimax(data, exog, periods=4):
     exog_train = exog_aligned.iloc[:-periods]
     exog_forecast = exog_aligned.iloc[-periods:]
 
-    model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
+    data_train = data.iloc[:-periods]
+exog_train = exog.iloc[:-periods]
+
+model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
+
     results = model.fit()
 
     forecast = results.get_forecast(steps=periods, exog=exog_forecast)
