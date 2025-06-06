@@ -48,23 +48,24 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Align indices
-    data_aligned, exog_aligned = data.align(exog, join='inner')
+    # Step 1: Align on dates
+    combined = pd.concat([data, exog], axis=1, join='inner').dropna()
+    data_aligned = combined.iloc[:, 0]  # revenue
+    exog_aligned = combined.iloc[:, 1:]  # CPI or other exog
 
-    # Slice both to ensure alignment
+    # Step 2: Split into training and forecasting sets
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
     exog_forecast = exog_aligned.iloc[-periods:]
 
-    # Debug print (optional)
-    # print(data_train.index.equals(exog_train.index))  # should be True
-
-    # Model
+    # Step 3: Fit model
     model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
 
+    # Step 4: Forecast
     forecast = results.get_forecast(steps=periods, exog=exog_forecast)
     return forecast.predicted_mean, forecast.conf_int()
+
 
 
 
