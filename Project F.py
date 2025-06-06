@@ -43,32 +43,35 @@ def load_financial_data():
     df.set_index('date', inplace=True)
     return df
 
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Align data and exog
+    # Align indices to avoid mismatch
     data_aligned, exog_aligned = data.align(exog, join='inner')
-    
-    # Ensure enough data points
-    if len(data_aligned) <= periods:
-        raise ValueError("Not enough data after alignment. Try extending your CPI or revenue data range.")
-    
-    # Slice training data (excluding the future forecast periods)
+
+    # Check that there's enough data after alignment
+    if len(data_aligned) <= periods or len(exog_aligned) <= periods:
+        raise ValueError("Not enough data after aligning endog and exog. Extend data range.")
+
+    # Training set
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
-    
-    # Future exog for forecasting
+
+    # Forecasting exog
     exog_forecast = exog_aligned.iloc[-periods:]
-    
-    # Confirm alignment before fitting
-    assert data_train.index.equals(exog_train.index), "Training indices are not aligned!"
-    assert exog_forecast.shape[0] == periods, "Forecast exog length mismatch."
-    
-    # Fit model
+
+    # Final check
+    if not data_train.index.equals(exog_train.index):
+        raise ValueError("Training indices are still misaligned. Cannot fit model.")
+
+    # Fit SARIMAX model
     model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
-    
+
     # Forecast
-    forecast = results.get_forecast(steps=periods, exog=exog_forecast)
-    return forecast.predicted_mean, forecast.conf_int()
+    forecast_result = results.get_forecast(steps=periods, exog=exog_forecast)
+    return forecast_result.predicted_mean, forecast_result.conf_int()
+
 
 
 
