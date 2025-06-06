@@ -2,13 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import yfinance as yf
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-# Use yfinance instead of FRED for CPI data
+# Use FRED for CPI data
 @st.cache_data
 def get_cpi_data():
     import requests
@@ -67,6 +66,8 @@ forecast_dates = pd.date_range(start=latest_date + pd.offsets.QuarterEnd(), peri
 
 # Apply user growth assumption
 adjusted_forecast = forecast * (1 + growth_input / 100)
+adjusted_forecast.index = forecast_dates
+conf_int.index = forecast_dates
 
 # Plot forecast
 fig, ax = plt.subplots(figsize=(10,5))
@@ -78,31 +79,23 @@ ax.set_ylabel("Revenue (Millions)")
 ax.legend()
 st.pyplot(fig)
 
-st.write("CPI DataFrame shape:", cpi.shape)
-st.write("CPI DataFrame preview:", cpi.head())
-
+# CPI Insight
+st.subheader("📊 Macroeconomic Insight: CPI")
 if cpi.empty:
-    st.error("CPI DataFrame is empty. Cannot fetch latest value.")
-    st.stop()
-elif 'Close' not in cpi.columns:
-    st.error("Column 'Close' not found in CPI data.")
-    st.write("Available columns:", cpi.columns)
+    st.error("CPI data could not be retrieved.")
     st.stop()
 else:
     latest_cpi = float(cpi['CPI'].iloc[-1])
+    avg_cpi = cpi['CPI'].mean()
     st.write("Latest CPI Value (from FRED):", latest_cpi)
+    st.line_chart(cpi)
 
-spy = yf.download("SPY", period="1mo")
-st.write("SPY test data:", spy.head())
-
-st.subheader("📊 Macroeconomic Insight: CPI")
-if not cpi.empty and 'CPI' in cpi.columns:
-    st.write("Latest CPI Value (from yfinance):", float(cpi['CPI'].iloc[-1]))
-else:
-    st.warning("CPI data could not be retrieved. Check your ticker symbol or internet connection.")
-    st.write("CPI DataFrame shape:", cpi.shape)
-st.write("CPI preview:", cpi.head())
-st.write("Latest CPI Value (from yfinance):", float(cpi['CPI'].iloc[-1]))
+    if latest_cpi > avg_cpi * 1.05:
+        st.warning("📈 CPI is significantly above average. Inflation may pressure input costs.")
+    elif latest_cpi < avg_cpi * 0.95:
+        st.success("📉 CPI is below average, suggesting lower inflationary pressures.")
+    else:
+        st.info("CPI is near its recent average. Inflation appears stable.")
 
 # New Variable Analysis
 st.subheader("📎 Additional Variables Insight")
@@ -115,9 +108,15 @@ st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights 
 st.subheader("🧠 AI-Generated Audit Committee Summary")
 ai_summary = (
     "Our ARIMA-based forecast for Starbucks indicates revenue is expected to grow modestly, aligning with historical patterns. "
-    f"Live CPI data from yfinance shows inflationary pressure, currently at {float(cpi['CPI'].iloc[-1]):.2f}. "
+    f"Live CPI data from FRED shows inflationary pressure, currently at {latest_cpi:.2f}. "
     "EPS trends suggest moderate earnings stability, while COGS fluctuations may warrant further analysis of margin pressures. "
     "No major risk indicators are flagged at this time, though monitoring input cost volatility remains key."
+)
+st.info(ai_summary)
+
+# Footer
+st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
+
 )
 st.info(ai_summary)
 
