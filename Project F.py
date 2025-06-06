@@ -13,15 +13,28 @@ def load_financial_data_with_cpi():
     df.set_index('date', inplace=True)
     return df
 
-def forecast_revenue_arimax(endog, exog, forecast_periods=4):
-    # Fit ARIMA(1,1,1) with exog
-    model = ARIMA(endog, order=(1,1,1), exog=exog)
+def forecast_revenue_arimax(data, exog, periods=4):
+    # Align data and exog by joining and dropping missing
+    combined = pd.concat([data, exog], axis=1).dropna()
+    
+    data_aligned = combined.iloc[:, 0]   # endogenous (revenue)
+    exog_aligned = combined.iloc[:, 1:]  # exogenous variables
+
+    # Slice both data and exog for training (exclude last 'periods' rows)
+    data_train = data_aligned.iloc[:-periods]
+    exog_train = exog_aligned.iloc[:-periods]
+
+    # Exogenous data for forecasting (last 'periods' rows)
+    exog_forecast = exog_aligned.iloc[-periods:]
+
+    # Fit model on training data with aligned indexes
+    model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
 
-    # For forecasting, exog must contain the future exog values
-    exog_forecast = exog.tail(forecast_periods)
-    forecast = results.get_forecast(steps=forecast_periods, exog=exog_forecast)
+    # Forecast with exogenous variables for forecast horizon
+    forecast = results.get_forecast(steps=periods, exog=exog_forecast)
     return forecast.predicted_mean, forecast.conf_int()
+
 
 # Streamlit UI
 st.title("📈 Starbucks Revenue Forecast App (Simplified ARIMAX)")
