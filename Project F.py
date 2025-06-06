@@ -16,22 +16,22 @@ def load_financial_data_with_cpi():
 
 def forecast_revenue_arimax(data, exog, periods=4):
     combined = pd.concat([data, exog], axis=1, join='inner').dropna()
-    data_aligned = combined.iloc[:, 0]
-    exog_aligned = combined.iloc[:, 1:]
+    data_aligned = combined.iloc[:, 0]  # revenue (endog)
+    exog_aligned = combined.iloc[:, 1:]  # CPI or others (exog)
 
+    # Slice both data and exog for training to ensure alignment
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
+
+    # Exogenous variables for forecasting
     exog_forecast = exog_aligned.iloc[-periods:]
 
-    data_train = data.iloc[:-periods]
-exog_train = exog.iloc[:-periods]
-
-model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
-
+    model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
 
     forecast = results.get_forecast(steps=periods, exog=exog_forecast)
     return forecast.predicted_mean, forecast.conf_int()
+
 
 # Load data
 st.title("📈 Starbucks Revenue Forecast App")
