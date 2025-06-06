@@ -12,6 +12,7 @@ def load_financial_data_with_cpi():
     df = pd.read_csv("starbucks_financials_expanded.csv", parse_dates=['date'])
     df['date'] = pd.to_datetime(df['date'])
     df.set_index('date', inplace=True)
+    df = df.asfreq('Q')  # Ensure quarterly frequency
     return df
 
 def forecast_revenue_arimax(data, exog, periods=4):
@@ -102,6 +103,7 @@ ai_summary = (
 st.info(ai_summary)
 
 st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
+
 
 
 
