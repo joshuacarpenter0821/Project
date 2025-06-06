@@ -44,23 +44,30 @@ def load_financial_data():
     return df
 
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Align data and exog on their index, keep only matching dates
+    # Align data and exog
     data_aligned, exog_aligned = data.align(exog, join='inner')
     
-    # Drop last 'periods' points for training
+    # Ensure enough data points
+    if len(data_aligned) <= periods:
+        raise ValueError("Not enough data after alignment. Try extending your CPI or revenue data range.")
+    
+    # Slice training data (excluding the future forecast periods)
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
     
-    # Exog for forecasting steps
+    # Future exog for forecasting
     exog_forecast = exog_aligned.iloc[-periods:]
     
-    # Fit SARIMAX with aligned training data and exog
+    # Confirm alignment before fitting
+    assert data_train.index.equals(exog_train.index), "Training indices are not aligned!"
+    assert exog_forecast.shape[0] == periods, "Forecast exog length mismatch."
+    
+    # Fit model
     model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
     
-    # Forecast using exog for forecast horizon
+    # Forecast
     forecast = results.get_forecast(steps=periods, exog=exog_forecast)
-    
     return forecast.predicted_mean, forecast.conf_int()
 
 
