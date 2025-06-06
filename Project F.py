@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from datetime import datetime
+from statsmodels.tsa.arima.model import ARIMA
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -14,68 +13,69 @@ def load_financial_data_with_cpi():
     df.set_index('date', inplace=True)
     return df
 
-def forecast_revenue_arimax(data, exog, periods=4):
-    combined = pd.concat([data, exog], axis=1, join='inner').dropna()
-    data_aligned = combined.iloc[:, 0]  # revenue (endog)
-    exog_aligned = combined.iloc[:, 1:]  # CPI or others (exog)
-
-    # Slice both data and exog for training to ensure alignment
-    data_train = data_aligned.iloc[:-periods]
-    exog_train = exog_aligned.iloc[:-periods]
-
-    # Exogenous variables for forecasting
-    exog_forecast = exog_aligned.iloc[-periods:]
-
-    model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
+def forecast_revenue_arimax(endog, exog, forecast_periods=4):
+    # Fit ARIMA(1,1,1) with exog
+    model = ARIMA(endog, order=(1,1,1), exog=exog)
     results = model.fit()
 
-    forecast = results.get_forecast(steps=periods, exog=exog_forecast)
+    # For forecasting, exog must contain the future exog values
+    exog_forecast = exog.tail(forecast_periods)
+    forecast = results.get_forecast(steps=forecast_periods, exog=exog_forecast)
     return forecast.predicted_mean, forecast.conf_int()
 
+# Streamlit UI
+st.title("📈 Starbucks Revenue Forecast App (Simplified ARIMAX)")
 
-# Load data
-st.title("📈 Starbucks Revenue Forecast App")
 df = load_financial_data_with_cpi()
 
-# Check CPI presence
-if 'CPI' not in df.columns:
-    st.error("CPI column not found in the data file.")
+# Check required columns
+required_cols = ['revenue', 'CPI']
+missing_cols = [col for col in required_cols if col not in df.columns]
+if missing_cols:
+    st.error(f"Missing required columns in data: {missing_cols}")
     st.stop()
 
-# User input for expected quarterly revenue growth rate
+# Optional GDP growth if available
+exog_vars = ['CPI']
+if 'GDP_Growth' in df.columns:
+    exog_vars.append('GDP_Growth')
+
+exog = df[exog_vars]
+endog = df['revenue']
+
+# User input for expected quarterly revenue growth adjustment
 growth_input = st.slider("Expected Quarterly Revenue Growth (%)", min_value=-10.0, max_value=10.0, value=2.0, step=0.5)
 
-# Select revenue and CPI series, assuming quarterly frequency
-rev_series = df['revenue']
-cpi_exog = df[['CPI']]
-
-# Ensure enough data
 if len(df) < 12:
     st.error("Not enough data in the CSV file. Please provide more historical data.")
     st.stop()
 
 # Forecast
-forecast, conf_int = forecast_revenue_arimax(rev_series, cpi_exog)
-latest_date = rev_series.index[-1]
-forecast_dates = pd.date_range(start=latest_date + pd.offsets.QuarterEnd(), periods=4, freq='Q')
+forecast_periods = 4
+forecast, conf_int = forecast_revenue_arimax(endog, exog, forecast_periods=forecast_periods)
 
-# Adjust forecast by user input
+# Create future dates starting after last date
+latest_date = endog.index[-1]
+forecast_dates = pd.date_range(start=latest_date + pd.offsets.QuarterEnd(), periods=forecast_periods, freq='Q')
+
+# Adjust forecast by growth input
 adjusted_forecast = forecast * (1 + growth_input / 100)
 adjusted_forecast.index = forecast_dates
+
 conf_int_scaled = conf_int * (1 + growth_input / 100)
 conf_int_scaled.index = forecast_dates
 
-# Plot
+# Plot actual vs forecast
 fig, ax = plt.subplots(figsize=(10, 5))
-rev_series.plot(ax=ax, label='Actual Revenue')
+endog.plot(ax=ax, label='Actual Revenue')
 adjusted_forecast.plot(ax=ax, label='Forecasted Revenue (ARIMAX)', color='green')
 ax.fill_between(forecast_dates, conf_int_scaled.iloc[:, 0], conf_int_scaled.iloc[:, 1], color='green', alpha=0.2)
-ax.set_title("Starbucks Revenue Forecast with CPI (ARIMAX)")
+ax.set_title("Starbucks Revenue Forecast with CPI (ARIMAX, Simplified)")
 ax.set_ylabel("Revenue (Millions)")
 ax.legend()
 st.pyplot(fig)
 
-# CPI insight
+# CPI insights
 st.subheader("📊 Macroeconomic Insight: CPI")
 latest_cpi = df['CPI'].iloc[-1]
 avg_cpi = df['CPI'].mean()
@@ -91,21 +91,24 @@ else:
 
 # Additional variables insight
 st.subheader("📎 Additional Variables Insight")
-st.line_chart(df[['COGS', 'EPS']])
-if df['EPS'].iloc[-1] < df['EPS'].mean() * 0.8:
-    st.warning("⚠️ EPS has dropped significantly compared to historical average. Potential earnings risk.")
-st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights into per-share profitability trends over time.")
+if 'COGS' in df.columns and 'EPS' in df.columns:
+    st.line_chart(df[['COGS', 'EPS']])
+    if df['EPS'].iloc[-1] < df['EPS'].mean() * 0.8:
+        st.warning("⚠️ EPS has dropped significantly compared to historical average. Potential earnings risk.")
+    st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights into per-share profitability trends over time.")
 
 # AI summary
 st.subheader("🧠 AI-Generated Audit Committee Summary")
 ai_summary = (
-    "Using an ARIMAX model that incorporates CPI data, Starbucks’ revenue forecast reflects macroeconomic conditions. "
-    f"Current CPI is {latest_cpi:.2f}, suggesting {'rising' if latest_cpi > avg_cpi else 'moderate or easing'} inflation pressure. "
-    "EPS stability and margin insights from COGS provide additional context. Monitoring inflation trends is advised."
+    "Using a simplified ARIMAX model incorporating CPI data (and GDP growth if available), Starbucks’ revenue forecast "
+    f"reflects current macroeconomic conditions. Current CPI is {latest_cpi:.2f}, indicating "
+    f"{'rising' if latest_cpi > avg_cpi else 'stable or easing'} inflation pressure. Additional financial metrics like EPS and COGS "
+    "offer complementary insights. Monitoring inflation trends is advised."
 )
 st.info(ai_summary)
 
 # Footer
 st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
+
 
 
