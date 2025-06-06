@@ -44,21 +44,25 @@ def load_financial_data():
     return df
 
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Align indexes - inner join ensures common dates only
-    data_aligned, exog_aligned = data.align(exog, join='inner', axis=0)
-
-    # Exclude last 'periods' points from training
+    # Align data and exog on their index, keep only matching dates
+    data_aligned, exog_aligned = data.align(exog, join='inner')
+    
+    # Drop last 'periods' points for training
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
-
-    # Exogenous for forecast period
+    
+    # Exog for forecasting steps
     exog_forecast = exog_aligned.iloc[-periods:]
-
+    
+    # Fit SARIMAX with aligned training data and exog
     model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
-
+    
+    # Forecast using exog for forecast horizon
     forecast = results.get_forecast(steps=periods, exog=exog_forecast)
+    
     return forecast.predicted_mean, forecast.conf_int()
+
 
 
 # Load data
