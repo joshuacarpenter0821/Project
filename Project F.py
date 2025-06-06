@@ -43,12 +43,23 @@ def load_financial_data():
     df.set_index('date', inplace=True)
     return df
 
-# Forecasting with ARIMAX (revenue with CPI as exogenous)
 def forecast_revenue_arimax(data, exog, periods=4):
-    model = SARIMAX(data, exog=exog[:-periods], order=(1,1,1), seasonal_order=(1,1,1,4))
+    # Align indexes - inner join ensures common dates only
+    data_aligned, exog_aligned = data.align(exog, join='inner', axis=0)
+
+    # Exclude last 'periods' points from training
+    data_train = data_aligned.iloc[:-periods]
+    exog_train = exog_aligned.iloc[:-periods]
+
+    # Exogenous for forecast period
+    exog_forecast = exog_aligned.iloc[-periods:]
+
+    model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
-    forecast = results.get_forecast(steps=periods, exog=exog[-periods:])
+
+    forecast = results.get_forecast(steps=periods, exog=exog_forecast)
     return forecast.predicted_mean, forecast.conf_int()
+
 
 # Load data
 st.title("📈 Starbucks Revenue Forecast App")
