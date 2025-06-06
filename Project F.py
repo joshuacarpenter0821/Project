@@ -43,11 +43,11 @@ def load_financial_data():
     df.set_index('date', inplace=True)
     return df
 
-# Forecasting model
-def forecast_revenue(data, periods=4):
-    model = SARIMAX(data, order=(1,1,1), seasonal_order=(1,1,1,4))
+# Forecasting with ARIMAX (revenue with CPI as exogenous)
+def forecast_revenue_arimax(data, exog, periods=4):
+    model = SARIMAX(data, exog=exog[:-periods], order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
-    forecast = results.get_forecast(steps=periods)
+    forecast = results.get_forecast(steps=periods, exog=exog[-periods:])
     return forecast.predicted_mean, forecast.conf_int()
 
 # Load data
@@ -58,9 +58,20 @@ cpi = get_cpi_data()
 # User input for expected quarterly revenue growth rate
 growth_input = st.slider("Expected Quarterly Revenue Growth (%)", min_value=-10.0, max_value=10.0, value=2.0, step=0.5)
 
-# Forecast revenue
-rev_series = df['revenue']
-forecast, conf_int = forecast_revenue(rev_series)
+# Resample CPI to quarterly frequency and align with revenue
+cpi_quarterly = cpi.resample('Q').mean()
+combined = pd.merge(df[['revenue']], cpi_quarterly, left_index=True, right_index=True, how='inner')
+
+# Ensure enough data
+if len(combined) < 12:
+    st.error("Not enough data after merging CPI and revenue. Extend the data range if possible.")
+    st.stop()
+
+rev_series = combined['revenue']
+cpi_exog = combined[['CPI']]
+
+# Forecast using ARIMAX
+forecast, conf_int = forecast_revenue_arimax(rev_series, cpi_exog)
 latest_date = rev_series.index[-1]
 forecast_dates = pd.date_range(start=latest_date + pd.offsets.QuarterEnd(), periods=4, freq='Q')
 
@@ -70,11 +81,11 @@ adjusted_forecast.index = forecast_dates
 conf_int.index = forecast_dates
 
 # Plot forecast
-fig, ax = plt.subplots(figsize=(10,5))
+fig, ax = plt.subplots(figsize=(10, 5))
 rev_series.plot(ax=ax, label='Actual Revenue')
-adjusted_forecast.plot(ax=ax, label='Forecasted Revenue', color='green')
+adjusted_forecast.plot(ax=ax, label='Forecasted Revenue (ARIMAX)', color='green')
 ax.fill_between(forecast_dates, conf_int.iloc[:, 0], conf_int.iloc[:, 1], color='green', alpha=0.2)
-ax.set_title("Starbucks Revenue Forecast")
+ax.set_title("Starbucks Revenue Forecast with CPI (ARIMAX)")
 ax.set_ylabel("Revenue (Millions)")
 ax.legend()
 st.pyplot(fig)
@@ -107,19 +118,12 @@ st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights 
 # AI-Generated Summary
 st.subheader("🧠 AI-Generated Audit Committee Summary")
 ai_summary = (
-    "Our ARIMA-based forecast for Starbucks indicates revenue is expected to grow modestly, aligning with historical patterns. "
-    f"Live CPI data from FRED shows inflationary pressure, currently at {latest_cpi:.2f}. "
-    "EPS trends suggest moderate earnings stability, while COGS fluctuations may warrant further analysis of margin pressures. "
-    "No major risk indicators are flagged at this time, though monitoring input cost volatility remains key."
+    "Using an ARIMAX model that incorporates CPI data, Starbucks’ revenue forecast reflects macroeconomic conditions. "
+    f"Current CPI is {latest_cpi:.2f}, suggesting {'rising' if latest_cpi > avg_cpi else 'moderate or easing'} inflation pressure. "
+    "EPS stability and margin insights from COGS provide additional context. Monitoring inflation trends is advised."
 )
 st.info(ai_summary)
 
-
 # Footer
 st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
 
-
-st.info(ai_summary)
-
-# Footer
-st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
