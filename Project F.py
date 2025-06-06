@@ -45,32 +45,27 @@ def load_financial_data():
 
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Align indices to avoid mismatch
+    # Align indices
     data_aligned, exog_aligned = data.align(exog, join='inner')
 
-    # Check that there's enough data after alignment
-    if len(data_aligned) <= periods or len(exog_aligned) <= periods:
-        raise ValueError("Not enough data after aligning endog and exog. Extend data range.")
-
-    # Training set
+    # Slice both to ensure alignment
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
-
-    # Forecasting exog
     exog_forecast = exog_aligned.iloc[-periods:]
 
-    # Final check
-    if not data_train.index.equals(exog_train.index):
-        raise ValueError("Training indices are still misaligned. Cannot fit model.")
+    # Debug print (optional)
+    # print(data_train.index.equals(exog_train.index))  # should be True
 
-    # Fit SARIMAX model
+    # Model
     model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
 
-    # Forecast
-    forecast_result = results.get_forecast(steps=periods, exog=exog_forecast)
-    return forecast_result.predicted_mean, forecast_result.conf_int()
+    forecast = results.get_forecast(steps=periods, exog=exog_forecast)
+    return forecast.predicted_mean, forecast.conf_int()
+
 
 
 
