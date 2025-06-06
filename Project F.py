@@ -7,136 +7,92 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-# Use FRED for CPI data
 @st.cache_data
-def get_cpi_data():
-    import requests
-    series_id = "USACPALTT01IXNBQ"  # CPI series
-    api_key = "e30f46dc3e290dafe08d207f3a357392"
-    url = "https://api.stlouisfed.org/fred/series/observations"
-    params = {
-        "series_id": series_id,
-        "api_key": api_key,
-        "file_type": "json",
-        "observation_start": "2015-01-01"
-    }
-
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
-        data_json = response.json()
-        observations = data_json.get("observations", [])
-        cpi_df = pd.DataFrame(observations)
-        cpi_df["date"] = pd.to_datetime(cpi_df["date"])
-        cpi_df["value"] = pd.to_numeric(cpi_df["value"])
-        cpi_df = cpi_df[["date", "value"]].rename(columns={"value": "CPI"})
-        cpi_df.set_index("date", inplace=True)
-        return cpi_df
-    else:
-        st.error("Failed to fetch CPI data from FRED.")
-        return pd.DataFrame()
-
-# Load Starbucks financials
-@st.cache_data
-def load_financial_data():
+def load_financial_data_with_cpi():
     df = pd.read_csv("starbucks_financials_expanded.csv", parse_dates=['date'])
     df['date'] = pd.to_datetime(df['date'])
     df.set_index('date', inplace=True)
     return df
 
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Step 1: Align on dates
     combined = pd.concat([data, exog], axis=1, join='inner').dropna()
-    data_aligned = combined.iloc[:, 0]  # revenue
-    exog_aligned = combined.iloc[:, 1:]  # CPI or other exog
+    data_aligned = combined.iloc[:, 0]
+    exog_aligned = combined.iloc[:, 1:]
 
-    # Step 2: Split into training and forecasting sets
     data_train = data_aligned.iloc[:-periods]
     exog_train = exog_aligned.iloc[:-periods]
     exog_forecast = exog_aligned.iloc[-periods:]
 
-    # Step 3: Fit model
     model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
 
-    # Step 4: Forecast
     forecast = results.get_forecast(steps=periods, exog=exog_forecast)
     return forecast.predicted_mean, forecast.conf_int()
 
-
-
-
-
-
 # Load data
 st.title("📈 Starbucks Revenue Forecast App")
-df = load_financial_data()
-cpi = get_cpi_data()
+df = load_financial_data_with_cpi()
+
+# Check CPI presence
+if 'CPI' not in df.columns:
+    st.error("CPI column not found in the data file.")
+    st.stop()
 
 # User input for expected quarterly revenue growth rate
 growth_input = st.slider("Expected Quarterly Revenue Growth (%)", min_value=-10.0, max_value=10.0, value=2.0, step=0.5)
 
-# Resample CPI to quarterly frequency and align with revenue
-cpi_quarterly = cpi.resample('Q').mean()
-combined = pd.merge(df[['revenue']], cpi_quarterly, left_index=True, right_index=True, how='inner')
+# Select revenue and CPI series, assuming quarterly frequency
+rev_series = df['revenue']
+cpi_exog = df[['CPI']]
 
 # Ensure enough data
-if len(combined) < 12:
-    st.error("Not enough data after merging CPI and revenue. Extend the data range if possible.")
+if len(df) < 12:
+    st.error("Not enough data in the CSV file. Please provide more historical data.")
     st.stop()
 
-rev_series = combined['revenue']
-cpi_exog = combined[['CPI']]
-
-# Forecast using ARIMAX
+# Forecast
 forecast, conf_int = forecast_revenue_arimax(rev_series, cpi_exog)
 latest_date = rev_series.index[-1]
 forecast_dates = pd.date_range(start=latest_date + pd.offsets.QuarterEnd(), periods=4, freq='Q')
 
-# Apply user growth assumption
+# Adjust forecast by user input
 adjusted_forecast = forecast * (1 + growth_input / 100)
 adjusted_forecast.index = forecast_dates
-conf_int.index = forecast_dates
+conf_int_scaled = conf_int * (1 + growth_input / 100)
+conf_int_scaled.index = forecast_dates
 
-# Plot forecast
+# Plot
 fig, ax = plt.subplots(figsize=(10, 5))
 rev_series.plot(ax=ax, label='Actual Revenue')
 adjusted_forecast.plot(ax=ax, label='Forecasted Revenue (ARIMAX)', color='green')
-ax.fill_between(forecast_dates, conf_int.iloc[:, 0], conf_int.iloc[:, 1], color='green', alpha=0.2)
+ax.fill_between(forecast_dates, conf_int_scaled.iloc[:, 0], conf_int_scaled.iloc[:, 1], color='green', alpha=0.2)
 ax.set_title("Starbucks Revenue Forecast with CPI (ARIMAX)")
 ax.set_ylabel("Revenue (Millions)")
 ax.legend()
 st.pyplot(fig)
 
-# CPI Insight
+# CPI insight
 st.subheader("📊 Macroeconomic Insight: CPI")
-if cpi.empty:
-    st.error("CPI data could not be retrieved.")
-    st.stop()
+latest_cpi = df['CPI'].iloc[-1]
+avg_cpi = df['CPI'].mean()
+st.write("Latest CPI Value:", latest_cpi)
+st.line_chart(df['CPI'])
+
+if latest_cpi > avg_cpi * 1.05:
+    st.warning("📈 CPI is significantly above average. Inflation may pressure input costs.")
+elif latest_cpi < avg_cpi * 0.95:
+    st.success("📉 CPI is below average, suggesting lower inflationary pressures.")
 else:
-    latest_cpi = float(cpi['CPI'].iloc[-1])
-    avg_cpi = cpi['CPI'].mean()
-    st.write("Latest CPI Value (from FRED):", latest_cpi)
-    st.line_chart(cpi)
+    st.info("CPI is near its recent average. Inflation appears stable.")
 
-    if latest_cpi > avg_cpi * 1.05:
-        st.warning("📈 CPI is significantly above average. Inflation may pressure input costs.")
-    elif latest_cpi < avg_cpi * 0.95:
-        st.success("📉 CPI is below average, suggesting lower inflationary pressures.")
-    else:
-        st.info("CPI is near its recent average. Inflation appears stable.")
-
-# New Variable Analysis
+# Additional variables insight
 st.subheader("📎 Additional Variables Insight")
 st.line_chart(df[['COGS', 'EPS']])
 if df['EPS'].iloc[-1] < df['EPS'].mean() * 0.8:
     st.warning("⚠️ EPS has dropped significantly compared to historical average. Potential earnings risk.")
 st.markdown("COGS helps evaluate gross margin trends, while EPS offers insights into per-share profitability trends over time.")
 
-# AI-Generated Summary
+# AI summary
 st.subheader("🧠 AI-Generated Audit Committee Summary")
 ai_summary = (
     "Using an ARIMAX model that incorporates CPI data, Starbucks’ revenue forecast reflects macroeconomic conditions. "
@@ -147,4 +103,5 @@ st.info(ai_summary)
 
 # Footer
 st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
+
 
