@@ -11,8 +11,30 @@ warnings.filterwarnings("ignore")
 # Use yfinance instead of FRED for CPI data
 @st.cache_data
 def get_cpi_data():
-    cpi = yf.download("CPIAUCSL", start="2015-01-01")
-    return cpi
+    import requests
+    series_id = "USACPALTT01IXNBQ"  # CPI series
+    api_key = "e30f46dc3e290dafe08d207f3a357392"
+    url = "https://api.stlouisfed.org/fred/series/observations"
+    params = {
+        "series_id": series_id,
+        "api_key": api_key,
+        "file_type": "json",
+        "observation_start": "2023-01-01"
+    }
+
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        data_json = response.json()
+        observations = data_json.get("observations", [])
+        cpi_df = pd.DataFrame(observations)
+        cpi_df["date"] = pd.to_datetime(cpi_df["date"])
+        cpi_df["value"] = pd.to_numeric(cpi_df["value"])
+        cpi_df = cpi_df[["date", "value"]].rename(columns={"value": "CPI"})
+        cpi_df.set_index("date", inplace=True)
+        return cpi_df
+    else:
+        st.error("Failed to fetch CPI data from FRED.")
+        return pd.DataFrame()
 
 # Load Starbucks financials
 @st.cache_data
@@ -68,7 +90,7 @@ elif 'Close' not in cpi.columns:
     st.stop()
 else:
     latest_cpi = float(cpi['Close'].iloc[-1])
-    st.write("Latest CPI Value (from yfinance):", latest_cpi)
+    st.write("Latest CPI Value (from FRED):", latest_cpi)
 
 spy = yf.download("SPY", period="1mo")
 st.write("SPY test data:", spy.head())
