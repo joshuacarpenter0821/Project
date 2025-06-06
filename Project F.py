@@ -15,27 +15,28 @@ def load_financial_data_with_cpi():
     return df
 
 def forecast_revenue_arimax(data, exog, periods=4):
-    # Align indices and drop missing values to ensure matching indices
+    # Combine into one DataFrame to align and drop any rows with NaNs in either series
     combined = pd.concat([data, exog], axis=1).dropna()
-    
-    data_aligned = combined.iloc[:, 0]   # revenue (endog)
-    exog_aligned = combined.iloc[:, 1:]  # CPI or others (exog)
-    
-    # Training data slices
-    data_train = data_aligned.iloc[:-periods]
-    exog_train = exog_aligned.iloc[:-periods]
-    
-    # Forecast exogenous variables for the forecast horizon
-    exog_forecast = exog_aligned.iloc[-periods:]
-    
-    # Check indices alignment
-    assert data_train.index.equals(exog_train.index), "Indices for endog and exog are not aligned after slicing!"
-    
-    model = SARIMAX(data_train, exog=exog_train, order=(1,1,1), seasonal_order=(1,1,1,4))
+
+    # Now slice the last 'periods' out for forecasting, rest for training
+    train = combined.iloc[:-periods]
+    forecast_exog = combined.iloc[-periods:, 1:]  # exog columns only
+
+    train_endog = train.iloc[:, 0]  # first column is endogenous (data)
+    train_exog = train.iloc[:, 1:]  # rest are exogenous
+
+    # Debug prints to check alignment
+    print("train_endog index:", train_endog.index)
+    print("train_exog index:", train_exog.index)
+    assert train_endog.index.equals(train_exog.index), "Indices for endog and exog are not aligned!"
+
+    model = SARIMAX(train_endog, exog=train_exog, order=(1,1,1), seasonal_order=(1,1,1,4))
     results = model.fit()
-    
-    forecast = results.get_forecast(steps=periods, exog=exog_forecast)
+
+    forecast = results.get_forecast(steps=periods, exog=forecast_exog)
+
     return forecast.predicted_mean, forecast.conf_int()
+
 
 # Streamlit app starts here
 st.title("📈 Starbucks Revenue Forecast App")
