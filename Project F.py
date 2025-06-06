@@ -114,6 +114,7 @@ ai_summary = (
 )
 st.info(ai_summary)
 
+
 # Footer
 st.caption("Developed for ITEC 3155 / ACTG 4155 – Spring 2025 Final Project")
 
