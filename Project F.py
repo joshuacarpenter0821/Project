@@ -1,73 +1,57 @@
-import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-st.title("📈 Starbucks Revenue Forecast (SARIMAX with CPI)")
+# Load your data
+df = pd.read_csv("starbucks_data.csv", parse_dates=["date"])
 
-@st.cache_data
-def load_data():
-    df = pd.read_csv("starbucks_financials_expanded.csv", parse_dates=["date"])
-    df.set_index("date", inplace=True)
-    df = df[["revenue", "CPI"]].dropna()
-    return df
+# Set 'date' as index and sort it (important!)
+df.set_index("date", inplace=True)
+df.sort_index(inplace=True)
 
-df = load_data()
-
-if len(df) < 16:
-    st.error("Not enough data to fit the SARIMAX model (need at least 16 records).")
-    st.stop()
-
-growth_input = st.slider(
-    "Expected Quarterly Revenue Growth (%)",
-    min_value=-10.0, max_value=10.0, value=2.0, step=0.5
-)
-
+# Select endogenous and exogenous variables
 endog = df["revenue"]
 exog = df[["CPI"]]
 
-periods = 4  # forecast 4 future quarters
-
-# Align indices before fitting
+# Ensure endog and exog indices align exactly
 common_index = endog.index.intersection(exog.index)
 endog_aligned = endog.loc[common_index]
 exog_aligned = exog.loc[common_index]
 
-# Prepare future exog for forecast (repeat last CPI value)
-last_cpi = exog_aligned.iloc[-1].values[0]
-future_exog = pd.DataFrame({"CPI": [last_cpi] * periods})
-
 def forecast_revenue_arimax(endog, exog, periods, future_exog):
-    model = SARIMAX(endog, exog=exog, order=(1,1,1), seasonal_order=(1,1,1,4))
+    model = SARIMAX(
+        endog,
+        exog=exog,
+        order=(1,1,1),
+        seasonal_order=(1,1,1,4),
+        enforce_stationarity=False,
+        enforce_invertibility=False
+    )
     results = model.fit(disp=False)
+    
+    # Forecast next 'periods' with provided future exog values
     forecast_obj = results.get_forecast(steps=periods, exog=future_exog)
-    return results, forecast_obj.predicted_mean, forecast_obj.conf_int()
+    forecast = forecast_obj.predicted_mean
+    conf_int = forecast_obj.conf_int()
+    
+    return results, forecast, conf_int
 
-results, forecast_mean, conf_int = forecast_revenue_arimax(
-    endog_aligned, exog_aligned, periods, future_exog
+# Number of quarters to forecast
+periods = 4
+
+# Prepare future exog DataFrame (same columns as exog_aligned)
+# Here we just repeat the last known CPI value for simplicity
+last_cpi = exog_aligned["CPI"].iloc[-1]
+future_cpi = pd.DataFrame(
+    {"CPI": [last_cpi]*periods},
+    index=pd.date_range(start=exog_aligned.index[-1] + pd.offsets.QuarterEnd(), periods=periods, freq='Q')
 )
 
-# Apply user growth input multiplier
-forecast_mean_adj = forecast_mean * (1 + growth_input / 100)
-conf_int_adj = conf_int * (1 + growth_input / 100)
+# Call forecast function
+results, forecast, conf_int = forecast_revenue_arimax(endog_aligned, exog_aligned, periods, future_cpi)
 
-# Create forecast dates starting from last known quarter
-forecast_dates = pd.date_range(
-    start=exog_aligned.index[-1] + pd.offsets.QuarterEnd(), periods=periods, freq="Q"
-)
-forecast_mean_adj.index = forecast_dates
-conf_int_adj.index = forecast_dates
+print("Forecasted Revenue:")
+print(forecast)
 
-# Plot actual and forecasted revenue
-fig, ax = plt.subplots(figsize=(10, 5))
-df["revenue"].plot(ax=ax, label="Actual Revenue")
-forecast_mean_adj.plot(ax=ax, label="Forecasted Revenue", color="green")
-ax.fill_between(conf_int_adj.index, conf_int_adj.iloc[:, 0], conf_int_adj.iloc[:, 1], color="green", alpha=0.2)
-ax.set_title("Starbucks Revenue Forecast with SARIMAX + CPI")
-ax.set_ylabel("Revenue (Millions)")
-ax.grid(True)
-ax.legend()
-st.pyplot(fig)
+print("\nConfidence Intervals:")
+print(conf_int)
 
-st.subheader("SARIMAX Model Summary")
-st.text(results.summary())
